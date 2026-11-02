@@ -18,34 +18,33 @@ def send_telegram_message(message):
 
 def check_cinema():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        # Launch with arguments to bypass strict protocol blocks
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-http2", "--no-sandbox", "--disable-setuid-sandbox"]
+        )
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        page = context.new_page()
         
         print(f"Visiting {URL}...")
         try:
-            page.goto(URL, timeout=60000)
+            # Use 'domcontentloaded' to avoid waiting for heavy third-party tracking scripts
+            page.goto(URL, timeout=60000, wait_until="domcontentloaded")
             
-            # Wait for the cinema section to load
-            page.wait_for_selector("text=City Centre Almaza", timeout=20000)
+            # Wait for City Centre Almaza section or showtimes to appear
+            page.wait_for_selector("text=City Centre Almaza", timeout=25000)
             
-            # Extract text from the page
             page_text = page.inner_text("body")
             
             if "City Centre Almaza" in page_text:
-                print("City Centre Almaza found!")
-                
-                # Let's grab a snippet of text around City Centre Almaza to see available showtimes
-                # We can send this directly to your Telegram so you can read the live schedule on your phone!
-                
-                # Simple extraction of what's currently showing
-                message = "🎬 Avengers Update from City Centre Almaza:\n\nThe page is live! Check your available dates/times on the app or browser."
-                send_telegram_message(message)
+                print("City Centre Almaza found successfully!")
+                send_telegram_message("✅ Cinema Tracker checked successfully: City Centre Almaza showtimes page is up!")
             else:
-                print("City Centre Almaza not found on page.")
+                print("City Centre Almaza text not found.")
                 
         except Exception as e:
             print(f"Error while scraping: {e}")
-            send_telegram_message(f"⚠️ Cinema Tracker Error: {str(e)}")
+            send_telegram_message(f"⚠️ Cinema Tracker Warning/Error: {str(e)[:100]}")
             
         browser.close()
 
