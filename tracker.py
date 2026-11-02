@@ -19,33 +19,24 @@ def send_telegram_message(message):
         print(f"Failed to send Telegram alert: {e}")
 
 def check_cinema():
+    # Send a forced test notification immediately on run
+    send_telegram_message("🤖 Cinema Tracker workflow started successfully! Checking Avengers at City Centre Almaza...")
+
     with sync_playwright() as p:
-        # Launch browser in headless mode
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
         print(f"Checking VOX Cinemas for Avengers...")
         try:
             page.goto(URL, timeout=60000)
-            
-            # Wait for the showtimes container or City Centre Almaza text to load
             page.wait_for_selector("text=City Centre Almaza", timeout=20000)
-            
-            # Extract all text visible on the page body
             page_text = page.inner_text("body")
             
             if "City Centre Almaza" in page_text:
                 print("Found City Centre Almaza on the page.")
-                
-                # Check if specific new showtimes or dates appear
-                # For now, let's send a success test notification so you know it works
-                # You can customize this condition later to check for specific time strings.
-                
-                # Optional: send message on first successful test run
-                # send_telegram_message("🤖 Tracker is active! Watching Avengers at City Centre Almaza.")
-                
+                # You can add custom conditions here later if new dates or seats open up
             else:
-                print("City Centre Almaza text not found yet.")
+                print("City Centre Almaza text not found.")
                 
         except Exception as e:
             print(f"Error while browsing: {e}")
