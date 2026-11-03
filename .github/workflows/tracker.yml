@@ -2,8 +2,8 @@ name: Cinema Tracker
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Runs every 15 minutes
-  workflow_dispatch: # Allows you to run it manually anytime you want
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-tracker:
@@ -17,10 +17,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install playwright
-          playwright install chromium
+      - name: Cache known dates
+        uses: actions/cache@v3
+        with:
+          path: known_dates.txt
+          key: cinema-dates-cache-${{ github.run_id }}
+          restore-keys: |
+            cinema-dates-cache-
 
-      - name: Run script
-        run: python tracker.py
+      - name: Run scripts
+        run: |
+          python tracker.py
+          python date_tracker.py
