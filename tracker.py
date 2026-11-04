@@ -1,9 +1,11 @@
 import urllib.request
 import urllib.parse
+import os
 
 TELEGRAM_BOT_TOKEN = "9248193398:AAH2wrrZmjImA8AWxP4wFXm5mjHQyrSFIg8"
 TELEGRAM_CHAT_ID = "1366960255"
 SCRAPER_API_KEY = "3f8af86c7864a3b083dee0c5b1874a18"
+STATE_FILE = "notified_avengers.txt"
 
 TARGET_URL = "https://egy.voxcinemas.com/showtimes?c=city-centre-almaza&m=avengers-endgame-encore-infinity-vision&m=avengers-doomsday&m=avengers-doomsday-infinity-vision"
 API_URL = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={urllib.parse.quote(TARGET_URL)}"
@@ -23,8 +25,13 @@ def check_cinema():
             html_content = response.read().decode('utf-8', errors='ignore')
             
             if "Avengers" in html_content and ("Standard" in html_content or "MAX" in html_content):
-                print("Showtimes found!")
-                send_telegram_message(f"🎬 Alert: Avengers showtimes are now available at City Centre Almaza! Book here: {TARGET_URL}")
+                if os.path.exists(STATE_FILE):
+                    print("Avengers showtimes are available, but we already sent an alert previously.")
+                else:
+                    print("New Avengers showtimes found! Sending alert...")
+                    send_telegram_message(f"🎬 Alert: Avengers showtimes are now available at City Centre Almaza! Book here: {TARGET_URL}")
+                    with open(STATE_FILE, "w") as f:
+                        f.write("notified")
             else:
                 print("No active showtimes found for this filter yet.")
                 
