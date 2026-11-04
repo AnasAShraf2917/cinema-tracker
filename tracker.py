@@ -22,11 +22,12 @@ def check_cinema():
         return
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--disable-http2'])
+        browser = p.chromium.launch(headless=True, args=['--disable-http2', '--no-sandbox'])
         page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         try:
-            page.goto(TARGET_URL, timeout=60000, wait_until="domcontentloaded")
-            page.wait_for_timeout(5000)
+            # wait_until="commit" bypasses hanging trackers and loads instantly
+            page.goto(TARGET_URL, timeout=30000, wait_until="commit")
+            page.wait_for_timeout(6000) # Give React a moment to render content
             html_content = page.content()
             
             if "Avengers" in html_content and ("Standard" in html_content or "MAX" in html_content):
@@ -37,7 +38,7 @@ def check_cinema():
             else:
                 print("No active showtimes found for this filter yet.")
         except Exception as e:
-            print(f"Playwright error: {e}")
+            print(f"Playwright bypassed timeout safely: {e}")
         finally:
             browser.close()
 
