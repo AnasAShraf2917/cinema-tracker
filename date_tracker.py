@@ -1,15 +1,13 @@
-import urllib.request
-import urllib.parse
-import re
 import os
+import re
+import urllib.parse
+import urllib.request
+from playwright.sync_api import sync_playwright
 
 TELEGRAM_BOT_TOKEN = "9220799581:AAHVmxcBIWq2WO42HYFV8NBhhmo5wscoCh0"
 TELEGRAM_CHAT_ID = "1366960255"
-SCRAPER_API_KEY = "3f8af86c7864a3b083dee0c5b1874a18"
-
-TARGET_URL = "https://egy.voxcinemas.com/showtimes?c=city-centre-almaza"
-API_URL = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={urllib.parse.quote(TARGET_URL)}"
 STATE_FILE = "known_dates.txt"
+TARGET_URL = "https://egy.voxcinemas.com/showtimes?c=city-centre-almaza"
 
 def send_telegram_message(message):
     text = urllib.parse.quote(message)
@@ -20,10 +18,13 @@ def send_telegram_message(message):
         print(f"Failed to send Telegram alert: {e}")
 
 def check_new_dates():
-    try:
-        req = urllib.request.Request(API_URL)
-        with urllib.request.urlopen(req, timeout=60) as response:
-            html = response.read().decode('utf-8', errors='ignore')
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        try:
+            page.goto(TARGET_URL, timeout=60000)
+            page.wait_for_timeout(5000)  # Wait for React to load dates
+            html = page.content()
             
             date_pattern = r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b'
             current_dates = set(re.findall(date_pattern, html))
@@ -37,7 +38,6 @@ def check_new_dates():
                 with open(STATE_FILE, "r") as f:
                     known_dates = set(f.read().splitlines())
                     
-            # If this is the very first time running with a cache, initialize quietly without spamming
             if not known_dates:
                 with open(STATE_FILE, "w") as f:
                     for d in current_dates:
@@ -59,9 +59,10 @@ def check_new_dates():
                 print(f"Alerted for new dates: {new_dates_list}")
             else:
                 print(f"No new dates. Currently tracking {len(known_dates)} dates.")
-
-    except Exception as e:
-        print(f"Skipped cycle due to API error: {e}")
+        except Exception as e:
+            print(f"Playwright error: {e}")
+        finally:
+            browser.close()
 
 if __name__ == "__main__":
     check_new_dates()
