@@ -29,7 +29,7 @@ def check_new_dates():
             current_dates = set(re.findall(date_pattern, html))
             
             if not current_dates:
-                print("No dates found. API might have hit a CAPTCHA, will retry next cycle.")
+                print("No dates found on page.")
                 return
                 
             known_dates = set()
@@ -37,6 +37,14 @@ def check_new_dates():
                 with open(STATE_FILE, "r") as f:
                     known_dates = set(f.read().splitlines())
                     
+            # If this is the very first time running with a cache, initialize quietly without spamming
+            if not known_dates:
+                with open(STATE_FILE, "w") as f:
+                    for d in current_dates:
+                        f.write(f"{d}\n")
+                print("Initialized known dates quietly. No alert sent.")
+                return
+
             new_dates = current_dates - known_dates
             
             if new_dates:
@@ -48,16 +56,12 @@ def check_new_dates():
                 with open(STATE_FILE, "w") as f:
                     for d in all_dates:
                         f.write(f"{d}\n")
+                print(f"Alerted for new dates: {new_dates_list}")
             else:
                 print(f"No new dates. Currently tracking {len(known_dates)} dates.")
-                
-                if not os.path.exists(STATE_FILE):
-                    with open(STATE_FILE, "w") as f:
-                        for d in current_dates:
-                            f.write(f"{d}\n")
 
     except Exception as e:
-        print(f"Skipped cycle due to API timeout/error: {e}")
+        print(f"Skipped cycle due to API error: {e}")
 
 if __name__ == "__main__":
     check_new_dates()
