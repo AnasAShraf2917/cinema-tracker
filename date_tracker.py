@@ -19,11 +19,10 @@ def send_telegram_message(message):
 
 def check_new_dates():
     with sync_playwright() as p:
-        # Added args=['--disable-http2'] to bypass Cloudflare protocol errors
         browser = p.chromium.launch(headless=True, args=['--disable-http2'])
         page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         try:
-            page.goto(TARGET_URL, timeout=60000)
+            page.goto(TARGET_URL, timeout=60000, wait_until="domcontentloaded")
             page.wait_for_timeout(5000)
             html = page.content()
             
