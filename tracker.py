@@ -19,19 +19,20 @@ def send_telegram_message(message):
         print(f"Failed to send Telegram alert: {e}")
 
 def check_cinema():
+    if os.path.exists(STATE_FILE):
+        print("Avengers alert already sent previously. Skipping check to prevent spam.")
+        return
+
     try:
         req = urllib.request.Request(API_URL)
         with urllib.request.urlopen(req, timeout=60) as response:
             html_content = response.read().decode('utf-8', errors='ignore')
             
             if "Avengers" in html_content and ("Standard" in html_content or "MAX" in html_content):
-                if os.path.exists(STATE_FILE):
-                    print("Avengers showtimes are available, but we already sent an alert previously.")
-                else:
-                    print("New Avengers showtimes found! Sending alert...")
-                    send_telegram_message(f"🎬 Alert: Avengers showtimes are now available at City Centre Almaza! Book here: {TARGET_URL}")
-                    with open(STATE_FILE, "w") as f:
-                        f.write("notified")
+                print("New Avengers showtimes found! Sending alert...")
+                send_telegram_message(f"🎬 Alert: Avengers showtimes are now available at City Centre Almaza! Book here: {TARGET_URL}")
+                with open(STATE_FILE, "w") as f:
+                    f.write("notified")
             else:
                 print("No active showtimes found for this filter yet.")
                 
