@@ -2,7 +2,7 @@ name: Cinema Tracker
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -23,7 +23,11 @@ jobs:
           path: |
             known_dates.txt
             notified_avengers.txt
-          key: cinema-state-v1
+          # Creates a brand-new save slot every run so it can't be blocked
+          key: cinema-rolling-state-${{ github.run_id }}
+          # Tells GitHub to load the most recent save file matching this prefix
+          restore-keys: |
+            cinema-rolling-state-
 
       - name: Run scripts
         run: |
