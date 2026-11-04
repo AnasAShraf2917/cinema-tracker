@@ -23,9 +23,7 @@ jobs:
           path: |
             known_dates.txt
             notified_avengers.txt
-          key: cinema-state-cache-${{ github.run_id }}
-          restore-keys: |
-            cinema-state-cache-
+          key: cinema-state-v1
 
       - name: Run scripts
         run: |
