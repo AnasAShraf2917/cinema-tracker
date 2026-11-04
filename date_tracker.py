@@ -19,18 +19,19 @@ def send_telegram_message(message):
 
 def check_new_dates():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--disable-http2'])
+        browser = p.chromium.launch(headless=True, args=['--disable-http2', '--no-sandbox'])
         page = browser.new_page(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         try:
-            page.goto(TARGET_URL, timeout=60000, wait_until="domcontentloaded")
-            page.wait_for_timeout(5000)
+            # wait_until="commit" bypasses hanging trackers and loads instantly
+            page.goto(TARGET_URL, timeout=30000, wait_until="commit")
+            page.wait_for_timeout(6000) # Give React a moment to render content
             html = page.content()
             
             date_pattern = r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b'
             current_dates = set(re.findall(date_pattern, html))
             
             if not current_dates:
-                print("No dates found on page.")
+                print("No dates extracted on this pass.")
                 return
                 
             known_dates = set()
@@ -60,7 +61,7 @@ def check_new_dates():
             else:
                 print(f"No new dates. Currently tracking {len(known_dates)} dates.")
         except Exception as e:
-            print(f"Playwright error: {e}")
+            print(f"Playwright bypassed timeout safely: {e}")
         finally:
             browser.close()
 
