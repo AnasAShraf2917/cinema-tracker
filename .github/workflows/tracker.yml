@@ -2,7 +2,7 @@ name: Cinema Tracker
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,13 +17,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache known dates
+      - name: Cache state files
         uses: actions/cache@v3
         with:
-          path: known_dates.txt
-          key: cinema-dates-cache-${{ github.run_id }}
+          path: |
+            known_dates.txt
+            notified_avengers.txt
+          key: cinema-state-cache-${{ github.run_id }}
           restore-keys: |
-            cinema-dates-cache-
+            cinema-state-cache-
 
       - name: Run scripts
         run: |
