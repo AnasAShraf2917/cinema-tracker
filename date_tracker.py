@@ -4,6 +4,8 @@ import urllib.error
 import json
 import re
 import os
+import time
+from datetime import datetime
 
 TELEGRAM_BOT_TOKEN = "9220799581:AAHVmxcBIWq2WO42HYFV8NBhhmo5wscoCh0"
 TELEGRAM_CHAT_ID = "1366960255"
@@ -22,55 +24,76 @@ def send_telegram_message(message):
     except Exception as e:
         print(f"Failed to send Telegram alert: {e}")
 
-def fetch_via_brightdata(url, render_js=True, as_markdown=True):
+def fetch_via_brightdata(url, max_retries=3):
     endpoint = "https://api.brightdata.com/request"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {BRIGHT_DATA_API_KEY}",
         "User-Agent": "Mozilla/5.0"
     }
-    body = {
+    payload = json.dumps({
         "zone": BRIGHT_DATA_ZONE,
         "url": url,
         "format": "raw"
-    }
-    if render_js:
-        body["render"] = "true"
-    if as_markdown:
-        body["data_format"] = "markdown"
+    }).encode("utf-8")
 
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(body).encode("utf-8"),
-        headers=headers,
-        method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=90) as response:
-            status = response.headers.get("x-brd-status-code", response.status)
-            content = response.read().decode("utf-8", errors="ignore")
-            return content, status
-    except urllib.error.HTTPError as e:
-        if e.code == 400 and (render_js or as_markdown):
-            return fetch_via_brightdata(url, render_js=False, as_markdown=False)
-        raise
+    brd_status = "unknown"
+    brd_error = ""
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=60) as response:
+            brd_status = str(response.headers.get("x-brd-status-code", response.status))
+            brd_error = response.headers.get("x-brd-error-code", "")
+            html = response.read().decode("utf-8", errors="ignore")
 
-def extract_visible_text(content):
-    no_scripts = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', content, flags=re.DOTALL | re.IGNORECASE)
-    no_tags = re.sub(r'<[^>]+>', ' ', no_scripts)
-    return re.sub(r'\s+', ' ', no_tags).strip()
+            if brd_status == "200" and len(html) > 500:
+                return html, brd_status, brd_error
+
+            print(f"Attempt {attempt}/{max_retries} returned status {brd_status} (length: {len(html)}, error: {brd_error}).")
+            if attempt < max_retries:
+                time.sleep(3)
+
+    return "", brd_status, brd_error
+
+def extract_dates(html):
+    # Remove scripts/styles and strip HTML tags so split <span>Mon</span><span>16</span><span>Nov</span> text joins cleanly
+    no_scripts = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
+    visible_text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', no_scripts)).strip()
+
+    date_pattern = r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b'
+    found_dates = set(re.findall(date_pattern, visible_text))
+
+    # Also extract d=YYYYMMDD parameters from VOX date tab links (covers Today, Tomorrow, and all date tabs)
+    for y, m, d in re.findall(r'[?&](?:amp;)?d=(20\d{2})(\d{2})(\d{2})\b', html):
+        try:
+            dt = datetime(int(y), int(m), int(d))
+            found_dates.add(f"{dt.strftime('%a')} {dt.day} {dt.strftime('%b')}")
+        except ValueError:
+            pass
+
+    # Also check data-date="YYYY-MM-DD" attributes
+    for y, m, d in re.findall(r'data-date=["\'](20\d{2})-(\d{2})-(\d{2})["\']', html):
+        try:
+            dt = datetime(int(y), int(m), int(d))
+            found_dates.add(f"{dt.strftime('%a')} {dt.day} {dt.strftime('%b')}")
+        except ValueError:
+            pass
+
+    return found_dates, visible_text
 
 def check_new_dates():
     try:
-        content, status = fetch_via_brightdata(TARGET_URL, render_js=True, as_markdown=True)
-        visible_text = extract_visible_text(content)
+        html, status, brd_error = fetch_via_brightdata(TARGET_URL)
+        if not html:
+            print(f"Could not fetch valid HTML after retries (Status: {status}, Error: {brd_error}).")
+            return
 
-        date_pattern = r'\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b'
-        current_dates = set(re.findall(date_pattern, visible_text))
-        current_dates.update(re.findall(date_pattern, content))
+        current_dates, visible_text = extract_dates(html)
 
         if not current_dates:
-            print(f"No dates found on page (Status: {status}, Length: {len(content)}). Preview: {visible_text[:200]}")
+            title_match = re.search(r'<title[^>]*>(.*?)</title>', html, flags=re.DOTALL | re.IGNORECASE)
+            page_title = title_match.group(1).strip() if title_match else "No title"
+            print(f"No dates found on page (Status: {status}, Length: {len(html)}, Title: {page_title}). Text preview: {visible_text[:200]}")
             return
 
         known_dates = set()
